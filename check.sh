@@ -37,6 +37,14 @@ if [ "$COUNT" -gt 0 ]; then
       continue
     fi
 
+    # Skip PRs already closed/merged by the time we poll; they are still
+    # recorded in state below so they will not be re-checked next run.
+    PR_STATE=$(jq -r .state <<<"$pr")
+    if [ "$PR_STATE" != "open" ]; then
+      echo "PR #$NUMBER is $PR_STATE, skipping"
+      continue
+    fi
+
     PAYLOAD=$(jq -n \
       --arg title "$(jq -r '"#\(.number) \(.title)"' <<<"$pr")" \
       --arg url "$(jq -r .html_url <<<"$pr")" \
