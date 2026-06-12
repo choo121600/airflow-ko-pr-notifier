@@ -1,13 +1,17 @@
 # airflow-ko-pr-notifier
 
-apache/airflow 저장소에 `translation:ko` 라벨이 붙은 새 PR이 올라오면 Discord 웹훅으로 알림을 보냅니다.
+apache/airflow 저장소를 폴링해서 Discord 웹훅으로 알림을 보냅니다:
+
+1. `translation:ko` 라벨이 붙은 새 PR
+2. main 브랜치에서 en 로케일 폴더(`airflow-core/src/airflow/ui/public/i18n/locales/en`)를
+   변경한 새 커밋 — ko 폴더 동기화가 필요한 신호이며, 변경된 파일 목록을 함께 보냅니다.
 
 ## 동작 방식
 
-- GitHub Actions가 15분마다 (`*/15 * * * *`) GitHub Search API로
-  `repo:apache/airflow is:pr label:"translation:ko"` PR 중 마지막 확인 시각 이후 생성된 것을 조회합니다.
-- 새 PR마다 Discord 웹훅으로 embed 메시지를 하나씩 전송합니다.
-- 마지막 확인 시각과 이미 알린 PR 번호는 `state.json`에 기록되어 중복 알림을 방지합니다.
+- GitHub Actions가 15분마다 (`*/15 * * * *`) 실행됩니다.
+- 새 PR은 GitHub Search API(`created:>마지막 확인 시각`)로, en 변경은
+  Commits API(`path=` + `since=`)로 조회합니다.
+- 마지막 확인 시각, 알린 PR 번호와 커밋 SHA는 `state.json`에 기록되어 중복 알림을 방지합니다.
 
 ## 설정
 
