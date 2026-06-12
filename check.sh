@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Polls apache/airflow and posts to a Discord webhook:
-#   1) new PRs labeled translation:ko
+#   1) open PRs labeled translation:ko that have not been notified yet
 #   2) new commits on main touching the en locale folder (ko sync needed)
 # State (last seen timestamps, PR numbers, commit SHAs) lives in state.json,
 # committed back by the workflow.
@@ -14,63 +14,56 @@ notify() {
   sleep 1
 }
 
-### 1) New PRs labeled translation:ko ########################################
+### 1) Open translation:ko PRs awaiting review ###############################
+# Any currently-open PR not yet notified gets a review-request message.
+# This covers brand-new PRs, PRs that existed before this notifier started,
+# and PRs that get the label added after creation.
 
-LAST_CREATED=$(jq -r .last_created "$STATE_FILE")
 SEEN=$(jq -c .seen "$STATE_FILE")
 
-QUERY="repo:apache/airflow is:pr label:\"translation:ko\" created:>${LAST_CREATED}"
-
 RESULTS=$(gh api -X GET search/issues \
-  -f q="$QUERY" -f advanced_search=true \
-  -f sort=created -f order=asc -f per_page=50 \
+  -f q='repo:apache/airflow is:pr is:open label:"translation:ko"' \
+  -f advanced_search=true \
+  -f sort=created -f order=asc -f per_page=100 \
   --jq '.items')
 
 COUNT=$(jq length <<<"$RESULTS")
-echo "Found $COUNT new translation:ko PR(s) created after $LAST_CREATED"
+echo "Found $COUNT open translation:ko PR(s)"
 
-if [ "$COUNT" -gt 0 ]; then
-  while read -r pr; do
-    NUMBER=$(jq .number <<<"$pr")
-    if jq -e "index($NUMBER)" <<<"$SEEN" >/dev/null; then
-      echo "PR #$NUMBER already notified, skipping"
-      continue
-    fi
+NEW_NUMBERS='[]'
+while read -r pr; do
+  NUMBER=$(jq .number <<<"$pr")
+  if jq -e "index($NUMBER)" <<<"$SEEN" >/dev/null; then
+    echo "PR #$NUMBER already notified, skipping"
+    continue
+  fi
 
-    # Skip PRs already closed/merged by the time we poll; they are still
-    # recorded in state below so they will not be re-checked next run.
-    PR_STATE=$(jq -r .state <<<"$pr")
-    if [ "$PR_STATE" != "open" ]; then
-      echo "PR #$NUMBER is $PR_STATE, skipping"
-      continue
-    fi
+  PAYLOAD=$(jq -n \
+    --arg title "$(jq -r '"#\(.number) \(.title)"' <<<"$pr")" \
+    --arg url "$(jq -r .html_url <<<"$pr")" \
+    --arg author "$(jq -r .user.login <<<"$pr")" \
+    --arg created "$(jq -r .created_at <<<"$pr")" \
+    '{
+      embeds: [{
+        title: $title,
+        url: $url,
+        description: ("리뷰를 기다리는 한국어 번역 PR입니다 — by **" + $author + "**"),
+        color: 1752220,
+        timestamp: $created,
+        footer: { text: "apache/airflow · label:translation:ko" }
+      }]
+    }')
 
-    PAYLOAD=$(jq -n \
-      --arg title "$(jq -r '"#\(.number) \(.title)"' <<<"$pr")" \
-      --arg url "$(jq -r .html_url <<<"$pr")" \
-      --arg author "$(jq -r .user.login <<<"$pr")" \
-      --arg created "$(jq -r .created_at <<<"$pr")" \
-      '{
-        embeds: [{
-          title: $title,
-          url: $url,
-          description: ("새 한국어 번역 PR이 올라왔습니다 — by **" + $author + "**"),
-          color: 1752220,
-          timestamp: $created,
-          footer: { text: "apache/airflow · label:translation:ko" }
-        }]
-      }')
+  notify "$PAYLOAD"
+  echo "Notified Discord about PR #$NUMBER"
+  NEW_NUMBERS=$(jq ". + [$NUMBER]" <<<"$NEW_NUMBERS")
+done < <(jq -c '.[]' <<<"$RESULTS")
 
-    notify "$PAYLOAD"
-    echo "Notified Discord about PR #$NUMBER"
-  done < <(jq -c '.[]' <<<"$RESULTS")
-
-  NEW_LAST=$(jq -r 'map(.created_at) | max' <<<"$RESULTS")
-  NEW_NUMBERS=$(jq '[.[].number]' <<<"$RESULTS")
-  jq --arg last "$NEW_LAST" --argjson nums "$NEW_NUMBERS" \
-    '.last_created = $last | .seen = ((.seen + $nums) | unique | sort | .[-200:])' \
+if [ "$(jq length <<<"$NEW_NUMBERS")" -gt 0 ]; then
+  jq --argjson nums "$NEW_NUMBERS" \
+    'del(.last_created) | .seen = ((.seen + $nums) | unique | sort | .[-500:])' \
     "$STATE_FILE" > state.tmp && mv state.tmp "$STATE_FILE"
-  echo "PR state updated: last_created=$NEW_LAST"
+  echo "PR state updated: seen += $(jq -c . <<<"$NEW_NUMBERS")"
 fi
 
 ### 2) New commits on main touching the en locale folder #####################
