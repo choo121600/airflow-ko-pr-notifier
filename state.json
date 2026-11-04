@@ -38,11 +38,11 @@
     75740,
     75755,
     75985,
-    76462
+    76462,
+    76480
   ],
-  "en_last_commit_date": "2026-11-03T21:03:30Z",
+  "en_last_commit_date": "2026-11-04T17:00:12Z",
   "en_seen_shas": [
-    "082b596dee4fba16b8f83b413f32be9d500fea44",
     "0f3a356e768eb54c4272d90dbf715376c01399a7",
     "14ab6a03ca7e0fc6e07c94023eb7992f17416c5a",
     "155560df6685ccb3db59f954faf927e80af8059c",
@@ -84,6 +84,7 @@
     "527f92e15ca88deef08f6f6313dbe31f0865f538",
     "5428b3b995bcc94aea572a03fc35dc8a82fd2c15",
     "5999abe9ba137022bffcfae73678a6a1d3d59643",
+    "5d70b49e9ead3a610c4ac8cacc6933a80931bc8b",
     "5e785acfb3b206ed2a24dcb063298c7fd47fe465",
     "609656f7d353b47858bd567efe02065234f62d10",
     "6fc06c600119c3948596ee1fd48c40cbb0325651",
